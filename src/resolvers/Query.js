@@ -1,3 +1,5 @@
+import getUserId from '../utils/getUserId'
+
 const Query = {
   users(parent, args, { db, prisma }, info) {
     const opArgs = {}
@@ -21,17 +23,40 @@ const Query = {
     //   return user.name.toLowerCase().includes(args.query.toLowerCase())
     // })
   },
-  posts(parent, args, { db, prisma }, info) {
-    const opArgs = {}
+  myPosts(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request)
+    const opArgs = {
+      where: {
+        author: {
+          id: userId
+        }
+      }
+    }
 
     if (args.query) {
-      opArgs.where = {
-          OR: [{
+      opArgs.where.OR = [{
+        title_contains: args.query
+      }, {
+        body_contains: args.query
+      }]
+    }
+
+    return prisma.query.posts(opArgs, info)
+
+  },
+  posts(parent, args, { db, prisma }, info) {
+    const opArgs = {
+      where: {
+        published: true
+      }
+    }
+
+    if (args.query) {
+      opArgs.where.OR= [{
           title_contains: args.query
         },{
           body_contains: args.query
         }]
-      }
     }
 
     return prisma.query.posts(opArgs, info)
@@ -49,13 +74,24 @@ const Query = {
   comments(parent, args, { db, prisma }, info) {
     return prisma.query.comments(null, info)
   },
-  post() {
-    return {
-      id: '001',
-      title: 'GraphQL',
-      body: '',
-      published: true
-    }
+  async post(parent, args, { prisma, request }, info) {
+    const userId = getUserId(request, false)
+
+    const posts = await prisma.query.posts({
+      where: {
+        id: args.id,
+        OR: [{
+          published: true
+        }, {
+          author: {
+            id: userId
+          }
+        }]
+      }
+    }, info)
+    if (posts.length === 0) throw new Error('post is not found')
+
+    return posts[0]
   },
 }
 
